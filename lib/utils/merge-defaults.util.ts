@@ -115,9 +115,11 @@ function wrapFormatErrorFn(options: GqlModuleOptions) {
   if (options.formatError) {
     const origFormatError = options.formatError;
     const transformHttpErrorFn = createTransformHttpErrorFn();
-    options.formatError = (err) => {
+    // @ts-ignore
+    options.formatError = (err, requestContext) => {
       err = transformHttpErrorFn(err) as GraphQLError;
-      return origFormatError(err);
+      // @ts-ignore
+      return origFormatError(err, requestContext);
     };
   } else {
     options.formatError = createTransformHttpErrorFn();
