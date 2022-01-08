@@ -7,6 +7,7 @@
 
 import { Type } from '@nestjs/common';
 import { isFunction } from '@nestjs/common/utils/shared.utils';
+import { Expose, ExposeOptions } from 'class-transformer';
 import { Complexity, FieldMiddleware } from '../interfaces';
 import { BaseTypeOptions } from '../interfaces/base-type-options.interface';
 import { ReturnTypeFunc } from '../interfaces/return-type-func.interface';
@@ -38,6 +39,11 @@ export interface FieldOptions extends BaseTypeOptions {
    * Array of middleware to apply.
    */
   middleware?: FieldMiddleware[];
+  /**
+   * Use class transformer to expose the field
+   * @default true
+   */
+  expose?: boolean | ExposeOptions;
 }
 
 /**
@@ -94,6 +100,13 @@ export function addFieldMetadata(
   const [typeFunc, options = {}] = isFunction(typeOrOptions)
     ? [typeOrOptions, fieldOptions]
     : [undefined, typeOrOptions as any];
+
+  if (options.expose !== false) {
+    Expose(typeof options.expose !== 'object' ? undefined : options.expose)(
+      prototype,
+      propertyKey,
+    );
+  }
 
   const applyMetadataFn = () => {
     const isResolver = !!descriptor;
