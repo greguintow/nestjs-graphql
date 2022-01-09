@@ -130,6 +130,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/nestjs/graphql"
+    "url": "https://github.com/greguintow/nestjs-graphql"
   }
 }
