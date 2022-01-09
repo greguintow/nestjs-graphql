@@ -1,7 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { isUndefined } from '@nestjs/common/utils/shared.utils';
-import { REQUEST } from '@nestjs/core';
-import { createContextId } from '@nestjs/core/helpers/context-id-factory';
+import {
+  createContextId,
+  MetadataScanner,
+  ModulesContainer,
+  REQUEST,
+} from '@nestjs/core';
 import { ExternalContextCreator } from '@nestjs/core/helpers/external-context-creator';
 import { ParamMetadata } from '@nestjs/core/helpers/interfaces/params-metadata.interface';
 import { Injector } from '@nestjs/core/injector/injector';
@@ -11,8 +15,6 @@ import {
 } from '@nestjs/core/injector/instance-wrapper';
 import { InternalCoreModule } from '@nestjs/core/injector/internal-core-module';
 import { Module } from '@nestjs/core/injector/module';
-import { ModulesContainer } from '@nestjs/core/injector/modules-container';
-import { MetadataScanner } from '@nestjs/core/metadata-scanner';
 import { REQUEST_CONTEXT_ID } from '@nestjs/core/router/request/request-constants';
 import { GraphQLResolveInfo } from 'graphql';
 import { head, identity } from 'lodash';
@@ -37,6 +39,7 @@ import { GqlContextType } from './gql-execution-context';
 
 @Injectable()
 export class ResolversExplorerService extends BaseExplorerService {
+  private readonly logger = new Logger(ResolversExplorerService.name);
   private readonly gqlParamsFactory = new GqlParamsFactory();
   private readonly injector = new Injector();
 
@@ -103,6 +106,13 @@ export class ResolversExplorerService extends BaseExplorerService {
             transform,
           );
         if (resolver.type === SUBSCRIPTION_TYPE) {
+          if (!wrapper.isDependencyTreeStatic()) {
+            // Note: We don't throw an exception here for backward
+            // compatibility reasons.
+            this.logger.error(
+              `"${wrapper.metatype.name}" resolver is request or transient-scoped. Resolvers that register subscriptions with the "@Subscription()" decorator must be static (singleton).`,
+            );
+          }
           const subscriptionOptions = Reflect.getMetadata(
             SUBSCRIPTION_OPTIONS_METADATA,
             instance[resolver.methodName],
@@ -299,7 +309,7 @@ export class ResolversExplorerService extends BaseExplorerService {
     TSource extends object = any,
     TContext = {},
     TArgs = { [argName: string]: any },
-    TOutput = any
+    TOutput = any,
   >(resolverFn: Function, instance: object, methodKey: string) {
     const fieldMiddleware = Reflect.getMetadata(
       FIELD_RESOLVER_MIDDLEWARE_METADATA,
@@ -314,9 +324,10 @@ export class ResolversExplorerService extends BaseExplorerService {
       return resolverFn;
     }
 
-    const originalResolveFnFactory = (
-      ...args: [TSource, TArgs, TContext, GraphQLResolveInfo]
-    ) => () => resolverFn(...args);
+    const originalResolveFnFactory =
+      (...args: [TSource, TArgs, TContext, GraphQLResolveInfo]) =>
+      () =>
+        resolverFn(...args);
 
     return decorateFieldResolverWithMiddleware<
       TSource,
